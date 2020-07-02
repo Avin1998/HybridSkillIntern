@@ -1,7 +1,6 @@
-from IAM_createUser import iam_create_user,iam_create_login_profile,sts_account_id
+from IAM_createUser import iam_create_user,iam_create_login_profile,sts_account_id,create_policy_iam
 import argparse
-
-
+import boto3
 # Passing the Username as an arguement while running the script
 parser = argparse.ArgumentParser()
 parser.add_argument('-u','--user',help="Provide the username", required=True)
@@ -13,6 +12,7 @@ Username=str(args.user)
 #Running IAM_createUser functions in a proper sequence to create the user
 UserNameValue=iam_create_user(Username)
 PassWordVAlue=iam_create_login_profile(Username)
+create_policy_iam(Username)
 AccountIdValue=sts_account_id()
 
 #Printing out the details of interest

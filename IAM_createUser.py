@@ -9,7 +9,7 @@ def random_password():
     return ''.join(random.choice(chars) for x in range(size))
 
 # Function to create a user using IAM
-def iam_create_user(Username,PolicyARN='arn:aws:iam::aws:policy/IAMReadOnlyAccess'):
+def iam_create_user(Username,PolicyARN='arn:aws:iam::aws:policy/IAMUserChangePassword'):
     Client=boto3.client("iam")
     response = Client.create_user(
                 UserName=Username,
@@ -28,6 +28,11 @@ def iam_create_login_profile(Username):
             )
     return password
 
+
+def create_policy_iam(Username):
+    Client=boto3.client("iam")
+    response=Client.attach_user_policy(UserName=Username,PolicyArn='arn:aws:iam::aws:policy/IAMUserChangePassword')
+    return 
 # Function to retrieve the account id of the root account
 def sts_account_id():
     Client=boto3.client("sts")
