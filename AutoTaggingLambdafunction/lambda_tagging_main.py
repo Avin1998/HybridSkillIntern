@@ -4,6 +4,7 @@ import boto3
 import logging
 import time
 import datetime
+from s3BucketPolicy import s3AccessControl
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -21,6 +22,7 @@ def lambda_handler(event, context):
         arn = detail['userIdentity']['arn']
         principal = detail['userIdentity']['principalId']
         userType = detail['userIdentity']['type']
+        accountId=detail['userIdentity']['accountId']
 
         if userType == 'IAMUser':
             user = detail['userIdentity']['userName']
@@ -28,59 +30,76 @@ def lambda_handler(event, context):
         else:
             user = principal.split(':')[1]
 
-
         logger.info('principalId: ' + str(principal))
         logger.info('region: ' + str(region))
         logger.info('eventName: ' + str(eventname))
         logger.info('detail: ' + str(detail))
 
-        if not detail['responseElements']:
-            logger.warning('Not responseElements found')
-            if detail['errorCode']:
-                logger.error('errorCode: ' + detail['errorCode'])
-            if detail['errorMessage']:
-                logger.error('errorMessage: ' + detail['errorMessage'])
-            return False
+        if detail['eventSource']=="ec2.amazonaws.com":
 
-        ec2 = boto3.resource('ec2')
+                if not detail['responseElements']:
+                    logger.warning('Not responseElements found')
+                    if detail['errorCode']:
+                        logger.error('errorCode: ' + detail['errorCode'])
+                    if detail['errorMessage']:
+                        logger.error('errorMessage: ' + detail['errorMessage'])
+                    return False
 
-        if eventname == 'CreateVolume':
-            ids.append(detail['responseElements']['volumeId'])
-            logger.info(ids)
+                ec2 = boto3.resource('ec2')
 
-        elif eventname == 'RunInstances':
-            items = detail['responseElements']['instancesSet']['items']
-            for item in items:
-                ids.append(item['instanceId'])
-            logger.info(ids)
-            logger.info('number of instances: ' + str(len(ids)))
+                if eventname == 'CreateVolume':
+                    ids.append(detail['responseElements']['volumeId'])
+                    logger.info(ids)
 
-            base = ec2.instances.filter(InstanceIds=ids)
+                elif eventname == 'RunInstances':
+                    items = detail['responseElements']['instancesSet']['items']
+                    for item in items:
+                        ids.append(item['instanceId'])
+                    logger.info(ids)
+                    logger.info('number of instances: ' + str(len(ids)))
 
-            #loop through the instances
-            for instance in base:
-                for vol in instance.volumes.all():
-                    ids.append(vol.id)
-                for eni in instance.network_interfaces:
-                    ids.append(eni.id)
+                    base = ec2.instances.filter(InstanceIds=ids)
 
-        elif eventname == 'CreateImage':
-            ids.append(detail['responseElements']['imageId'])
-            logger.info(ids)
+                    #loop through the instances
+                    for instance in base:
+                        for vol in instance.volumes.all():
+                            ids.append(vol.id)
+                        for eni in instance.network_interfaces:
+                            ids.append(eni.id)
 
-        elif eventname == 'CreateSnapshot':
-            ids.append(detail['responseElements']['snapshotId'])
-            logger.info(ids)
-        else:
-            logger.warning('Not supported action')
+                elif eventname == 'CreateImage':
+                    ids.append(detail['responseElements']['imageId'])
+                    logger.info(ids)
 
-        if ids:
-            for resourceid in ids:
-                print('Tagging resource ' + resourceid)
-            ec2.create_tags(Resources=ids, Tags=[{'Key': 'Owner', 'Value': user}, {'Key': 'PrincipalId', 'Value': principal}])
+                elif eventname == 'CreateSnapshot':
+                    ids.append(detail['responseElements']['snapshotId'])
+                    logger.info(ids)
 
-        logger.info(' Remaining time (ms): ' + str(context.get_remaining_time_in_millis()) + '\n')
-        return True
+                else:
+                    logger.warning('Not supported action')
+
+                if ids:
+                    for resourceid in ids:
+                        print('Tagging resource ' + resourceid)
+                    ec2.create_tags(Resources=ids, Tags=[{'Key': 'Owner', 'Value': user}, {'Key': 'PrincipalId', 'Value': principal}])
+
+                logger.info(' Remaining time (ms): ' + str(context.get_remaining_time_in_millis()) + '\n')
+                return True
+
+        elif detail["eventSource"]=="s3.amazonaws.com":
+
+                 s3=boto3.client("s3")
+
+                 if eventname == "CreateBucket":
+                    BucketName=detail['requestParameters']['bucketName']
+                    s3.put_bucket_policy(
+                        Bucket=BucketName,
+                        Policy=s3AccessControl(BucketName,accountId,user)
+                        )
+                    logger.info("Policies Added successfully")
+                return True
+
+
     except Exception as e:
         logger.error('Something went wrong: ' + str(e))
         return False
