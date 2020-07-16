@@ -31,8 +31,9 @@ def iam_create_login_profile(Username):
 
 def create_policy_iam(Username):
     Client=boto3.client("iam")
-    response=Client.attach_user_policy(UserName=Username,PolicyArn='arn:aws:iam::aws:policy/IAMUserChangePassword')
-    return 
+    response=Client.add_user_to_group(GroupName="EC2_access",UserName=Username)
+    return
+
 # Function to retrieve the account id of the root account
 def sts_account_id():
     Client=boto3.client("sts")
